@@ -198,7 +198,7 @@ body{background:var(--bg);color:var(--tx);font-family:'Noto Sans KR',sans-serif;
 
 <script>
 var KEY='';
-try{KEY=localStorage.getItem('nb_key')||''}catch(e){}
+try{KEY=localStorage.getItem('nb_key')||'';console.log('키 로드:',KEY?'있음 ('+KEY.slice(0,8)+'...)':'없음')}catch(e){console.error('localStorage 읽기 실패:',e)}
 var results=[];
 var generating=false;
 var uploads=[];
@@ -261,8 +261,12 @@ function hideModal(){document.getElementById('mo').classList.add('hidden')}
 function saveKey(){
   var k=document.getElementById('keyIn').value.trim();
   if(!k){document.getElementById('keyErr').textContent='키를 입력해주세요';document.getElementById('keyErr').style.display='block';return}
-  KEY=k;try{localStorage.setItem('nb_key',k)}catch(e){}
-  updKey();hideModal();toast('✅ API 키 저장됨');
+  KEY=k;
+  var saved=false;
+  try{localStorage.setItem('nb_key',k);saved=true}catch(e){console.error('localStorage 저장 실패:',e)}
+  updKey();hideModal();
+  if(saved){toast('✅ API 키 저장됨 (새로고침해도 유지)')}
+  else{toast('⚠️ 키 저장 불가 — 이 세션에서만 유효')}
 }
 function updKey(){var e=document.getElementById('keyBtn');if(KEY){e.className='key-btn on';e.textContent='🔑 OK'}else{e.className='key-btn off';e.textContent='🔑'}}
 
