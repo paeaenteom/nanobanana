@@ -3,11 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NanoBanana — AI 이미지 생성기</title>
+<title>NanoBanana — AI 이미지 생성기 (NSFW 완전 해제)</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23181818'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='18'%3E🍌%3C/text%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
-/* (스타일 부분은 이전과 완전히 동일 - 생략 없이 그대로) */
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#0a0a0f;--bg2:#111118;--bg3:#18181f;--bg4:#1e1e28;--tx:#d4d4dc;--tx2:#888;--tx3:#555;--yellow:#facc15;--yellow2:#eab308;--yellow-bg:#1a1800;--border:#1e1e2e;--border2:#2a2a3a;--red:#ef4444;--green:#22c55e;--blue:#60a5fa}
 html,body{height:100%;overflow:hidden}
@@ -132,7 +131,7 @@ body{background:var(--bg);color:var(--tx);font-family:'Noto Sans KR',sans-serif;
       <option value="gemini-2.5-flash-preview-native-audio-dialog">Nano Banana 2 (2.5 Flash Dialog)</option>
       <option value="gemini-3.0-flash-image-generation" selected>Nano Banana 2 (3.0 Flash)</option>
       <option value="gemini-3.0-pro-image-generation">Nano Banana Pro (3.0 Pro)</option>
-      <option value="gemini-3.1-flash-image-preview">Nano Banana 2+ (3.1 Flash) ← 최신</option>
+      <option value="gemini-3.1-flash-image-preview">Nano Banana 2+ (3.1 Flash)</option>
     </select>
     <span class="key-btn off" id="keyBtn" onclick="showModal()">🔑</span>
   </div>
@@ -188,22 +187,136 @@ body{background:var(--bg);color:var(--tx);font-family:'Noto Sans KR',sans-serif;
       <div class="empty">
         <div class="empty-icon">🍌</div>
         <div class="empty-title">프롬프트를 입력하고 생성하세요</div>
-        <div class="empty-desc">모든 모델 NSFW 완전 해제됨<br>어떤 프롬프트든 제한 없이 생성합니다</div>
+        <div class="empty-desc">모든 모델 NSFW 완전 해제됨<br>2+·3.1 포함 어떤 프롬프트든 제한 없이 생성합니다</div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-// (스크립트 부분 - 핵심은 generate() 함수의 safetySettings)
 var KEY='';
-try{KEY=localStorage.getItem('nb_key')||'';}catch(e){}
+try{KEY=localStorage.getItem('nb_key')||'';console.log('키 로드:',KEY?'있음 ('+KEY.slice(0,8)+'...)':'없음')}catch(e){console.error('localStorage 읽기 실패:',e)}
 var results=[];
 var generating=false;
 var uploads=[];
 var MAX_UP=14;
 
-// ... (업로드 관련 함수들은 이전과 동일) ...
+// UPLOAD
+var dropZone=document.getElementById('dropZone');
+var fileIn=document.getElementById('fileIn');
+dropZone.addEventListener('dragover',function(e){e.preventDefault();dropZone.classList.add('over')});
+dropZone.addEventListener('dragleave',function(){dropZone.classList.remove('over')});
+dropZone.addEventListener('drop',function(e){e.preventDefault();dropZone.classList.remove('over');handleFiles(e.dataTransfer.files)});
+fileIn.addEventListener('change',function(){handleFiles(this.files);this.value=''});
+
+function handleFiles(files){
+  var left=MAX_UP-uploads.length;
+  if(left<=0){toast('⚠️ 최대 '+MAX_UP+'장까지');return}
+  Array.from(files).slice(0,left).forEach(function(f){
+    if(!f.type.startsWith('image/'))return;
+    var reader=new FileReader();
+    reader.onload=function(e){
+      var img=new Image();
+      img.onload=function(){
+        var maxW=1024,w=img.width,h=img.height;
+        if(w>maxW){h=Math.round(h*(maxW/w));w=maxW}
+        var c=document.createElement('canvas');c.width=w;c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        var data=c.toDataURL('image/jpeg',0.85);
+        uploads.push({id:Date.now()+'_'+Math.random().toString(36).slice(2,5),name:f.name,label:'',data:data,b64:data.split(',')[1],mime:'image/jpeg'});
+        renderUploads();
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
+function renderUploads(){
+  var g=document.getElementById('upGrid');
+  document.getElementById('upCount').textContent=uploads.length+'/'+MAX_UP;
+  var full=uploads.length>=MAX_UP;
+  dropZone.style.display=full?'none':'';
+  document.getElementById('urlRow').style.display=full?'none':'';
+  if(!uploads.length){g.innerHTML='';return}
+  g.innerHTML=uploads.map(function(u,i){
+    return '<div class="up-card">'+
+      '<span class="up-idx">#'+(i+1)+'</span>'+
+      (u.fromUrl?'<span class="up-type">URL</span>':'')+
+      '<img src="'+u.data+'" onclick="openUpPrev('+i+')" title="클릭 확대">'+
+      '<button class="up-del" onclick="delUp('+i+')">✕</button>'+
+      '<input class="up-name-in" placeholder="이미지 이름..." value="'+esc(u.label||'')+'" onchange="renameUp('+i+',this.value)">'+
+      '</div>';
+  }).join('');
+}
+function delUp(i){uploads.splice(i,1);renderUploads()}
+function renameUp(i,v){uploads[i].label=v.trim()}
+function openUpPrev(i){
+  document.getElementById('prevImg').src=uploads[i].data;
+  document.getElementById('prevO').classList.add('open');
+}
+
+// URL UPLOAD
+var urlInEl=document.getElementById('urlIn');
+urlInEl.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();addByUrl()}});
+function addByUrl(){
+  var urlErrEl=document.getElementById('urlErr');
+  urlErrEl.style.display='none';
+  if(uploads.length>=MAX_UP){toast('⚠️ 최대 '+MAX_UP+'장까지');return}
+  var url=document.getElementById('urlIn').value.trim();
+  if(!url){urlErrEl.textContent='URL을 입력하세요';urlErrEl.style.display='block';return}
+  if(!/^https?:\/\/.+/i.test(url)){urlErrEl.textContent='올바른 URL을 입력하세요 (http/https)';urlErrEl.style.display='block';return}
+  var label=document.getElementById('urlNameIn').value.trim();
+  var btn=document.getElementById('urlAddBtn');
+  btn.disabled=true;btn.textContent='⏳';
+  var img=new Image();
+  img.crossOrigin='anonymous';
+  img.onload=function(){
+    try{
+      var maxW=1024,w=img.width,h=img.height;
+      if(w>maxW){h=Math.round(h*(maxW/w));w=maxW}
+      var c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      var data=c.toDataURL('image/jpeg',0.85);
+      uploads.push({id:Date.now()+'_'+Math.random().toString(36).slice(2,5),name:url.split('/').pop().split('?')[0]||'url_image',label:label,data:data,b64:data.split(',')[1],mime:'image/jpeg',fromUrl:true});
+      renderUploads();
+      document.getElementById('urlIn').value='';
+      document.getElementById('urlNameIn').value='';
+      toast('✅ URL 이미지 추가됨');
+    }catch(ex){
+      urlErrEl.textContent='CORS 차단됨 — 이미지를 다운로드 후 파일로 업로드하세요';
+      urlErrEl.style.display='block';
+    }
+    btn.disabled=false;btn.textContent='+ 추가';
+  };
+  img.onerror=function(){
+    urlErrEl.textContent='이미지 로드 실패 — URL을 확인하세요';
+    urlErrEl.style.display='block';
+    btn.disabled=false;btn.textContent='+ 추가';
+  };
+  img.src=url;
+}
+
+function showModal(){document.getElementById('mo').classList.remove('hidden');document.getElementById('keyIn').value=KEY}
+function hideModal(){document.getElementById('mo').classList.add('hidden')}
+function saveKey(){
+  var k=document.getElementById('keyIn').value.trim();
+  if(!k){document.getElementById('keyErr').textContent='키를 입력해주세요';document.getElementById('keyErr').style.display='block';return}
+  KEY=k;
+  var saved=false;
+  try{localStorage.setItem('nb_key',k);saved=true}catch(e){console.error('localStorage 저장 실패:',e)}
+  updKey();hideModal();
+  if(saved){toast('✅ API 키 저장됨 (새로고침해도 유지)')}
+  else{toast('⚠️ 키 저장 불가 — 이 세션에서만 유효')}
+}
+function updKey(){var e=document.getElementById('keyBtn');if(KEY){e.className='key-btn on';e.textContent='🔑 OK'}else{e.className='key-btn off';e.textContent='🔑'}}
+
+function toast(msg){
+  var t=document.createElement('div');
+  t.style.cssText='position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--bg3);color:var(--tx);padding:8px 18px;border-radius:6px;border:1px solid var(--border2);font-size:11px;z-index:9999;animation:fadeUp .3s;font-family:Noto Sans KR,sans-serif';
+  t.textContent=msg;document.body.appendChild(t);
+  setTimeout(function(){t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(function(){t.remove()},300)},2500);
+}
 
 function generate(){
   if(generating)return;
@@ -230,7 +343,7 @@ function generate(){
   var elapsed=0;
   var timerIv=setInterval(function(){
     elapsed++;
-    var msg=elapsed<10?'AI가 이미지를 그리는 중...':elapsed<30?'프롬프트 분석 중...':elapsed<60?'이미지 렌더링 중...':'거의 완료...';
+    var msg=elapsed<10?'AI가 이미지를 그리는 중...':elapsed<30?'프롬프트 분석 중... 조금만 기다려주세요':elapsed<60?'이미지 렌더링 중...':'거의 완료...';
     var te=document.getElementById('ld-msg');if(te)te.textContent=msg;
     var tt=document.getElementById('ld-timer');if(tt)tt.textContent=elapsed+'초';
   },1000);
@@ -247,8 +360,7 @@ function generate(){
 
   var body={
     contents:[{parts:parts}],
-    generationConfig:{ responseModalities:['TEXT','IMAGE'] },
-    // 🔥 모든 모델 (2+, 3.0, 3.1 등) NSFW 완전 해제
+    generationConfig:{responseModalities:['TEXT','IMAGE']},
     safetySettings: [
       {category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE"},
       {category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE"},
@@ -257,7 +369,6 @@ function generate(){
     ]
   };
 
-  // ... (fetch 부분은 이전과 동일) ...
   var fetchP=fetch(url+'?key='+KEY,{
     method:'POST',
     headers:{'Content-Type':'application/json'},
@@ -268,7 +379,7 @@ function generate(){
     if(!res.ok)return res.text().then(function(e){
       var msg='오류 ('+res.status+')';
       try{var ej=JSON.parse(e);if(ej.error&&ej.error.message)msg=ej.error.message}catch(x){}
-      if(res.status===401||res.status===403){KEY='';updKey();}
+      if(res.status===401||res.status===403){try{localStorage.removeItem('nb_key')}catch(x){}KEY='';updKey()}
       throw new Error(msg);
     });
     return res.json();
@@ -282,7 +393,9 @@ function generate(){
       });
     }
     if(!imgData){
-      throw new Error('이미지 생성 실패: '+(data.candidates?.[0]?.finishReason||'알 수 없음'));
+      var reason='이미지 없음';
+      if(data.candidates&&data.candidates[0]&&data.candidates[0].finishReason)reason=data.candidates[0].finishReason;
+      throw new Error('이미지 생성 실패: '+reason);
     }
     var dataUri='data:'+imgData.mimeType+';base64,'+imgData.data;
     var item={id:Date.now(),prompt:prompt,model:model,ratio:ratio,dataUri:dataUri,desc:desc,time:new Date().toLocaleTimeString()};
@@ -309,23 +422,57 @@ function generate(){
   });
 }
 
-// (나머지 함수들 - buildResultCard, openPrev, dlImg 등은 이전과 동일)
-function buildResultCard(item){ /* ... 동일 ... */ }
-function openPrev(id){ /* ... 동일 ... */ }
-function closePrev(){ /* ... 동일 ... */ }
-function dlImg(id){ /* ... 동일 ... */ }
-function copyPrompt(id){ /* ... 동일 ... */ }
+function buildResultCard(item){
+  return '<img class="result-img" src="'+item.dataUri+'" onclick="openPrev(\''+item.id+'\')" title="클릭하여 확대">'+
+    '<div class="result-bar">'+
+    '<span class="result-prompt" title="'+esc(item.prompt)+'">'+esc(item.prompt)+'</span>'+
+    '<span class="result-meta">'+item.time+' · '+item.ratio+'</span>'+
+    '<button class="result-btn" onclick="dlImg(\''+item.id+'\')">💾 저장</button>'+
+    '<button class="result-btn" onclick="copyPrompt(\''+item.id+'\')">📋</button>'+
+    '</div>';
+}
+
+function openPrev(id){
+  var item=results.find(function(r){return r.id==id});
+  if(!item)return;
+  document.getElementById('prevImg').src=item.dataUri;
+  document.getElementById('prevO').classList.add('open');
+}
+function closePrev(){document.getElementById('prevO').classList.remove('open')}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closePrev()});
+
+function dlImg(id){
+  var item=results.find(function(r){return r.id==id});
+  if(!item)return;
+  var img=new Image();
+  img.onload=function(){
+    var c=document.createElement('canvas');
+    c.width=img.naturalWidth;c.height=img.naturalHeight;
+    c.getContext('2d').drawImage(img,0,0);
+    var pngUri=c.toDataURL('image/png');
+    var a=document.createElement('a');
+    a.href=pngUri;
+    a.download='nanobanana_'+item.id+'.png';
+    a.click();
+    toast('💾 PNG 다운로드 완료');
+  };
+  img.src=item.dataUri;
+}
+
+function copyPrompt(id){
+  var item=results.find(function(r){return r.id==id});
+  if(!item)return;
+  try{navigator.clipboard.writeText(item.prompt);toast('📋 프롬프트 복사됨')}
+  catch(e){toast('⚠️ 복사 실패')}
+}
+
 function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):'';}
+
 // Ctrl+Enter
-document.getElementById('promptIn').addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();generate()}});
+document.getElementById('promptIn').addEventListener('keydown',function(e){
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();generate()}
+});
 
-function toast(msg){ /* ... 동일 ... */ }
-function showModal(){ /* ... 동일 ... */ }
-function saveKey(){ /* ... 동일 ... */ }
-function updKey(){ /* ... 동일 ... */ }
-// 업로드 관련 함수들 (handleFiles, renderUploads, addByUrl 등)도 이전과 동일하게 유지
-
-// 초기화
 updKey();
 if(!KEY)showModal();
 </script>
