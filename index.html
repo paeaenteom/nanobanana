@@ -43,7 +43,7 @@ body{background:var(--bg);color:var(--tx);font-family:'Noto Sans KR',sans-serif;
 .empty-title{font-size:16px;font-weight:700;color:#555}
 .empty-desc{font-size:11px;text-align:center;line-height:1.7}
 .result{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;overflow:hidden}
-.result-img{width:100%;display:block;cursor:pointer;background:var(--bg3);min-height:200px}
+.result-img{width:100%;max-height:70vh;object-fit:contain;display:block;cursor:pointer;background:var(--bg3);min-height:200px}
 .result-bar{padding:10px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .result-prompt{font-size:11px;color:var(--tx2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .result-meta{font-size:9px;color:var(--tx3)}
@@ -80,6 +80,7 @@ body{background:var(--bg);color:var(--tx);font-family:'Noto Sans KR',sans-serif;
 .up-name-in{width:100%;padding:3px 4px;background:var(--bg);border:none;border-top:1px solid var(--border2);color:var(--tx);font-size:9px;outline:none;font-family:inherit}
 .up-name-in:focus{background:var(--bg2)}
 .up-name-in::placeholder{color:var(--tx3)}
+.up-card .up-type{position:absolute;bottom:22px;left:2px;background:#000a;color:var(--blue);font-size:7px;font-weight:700;padding:1px 3px;border-radius:2px}
 .url-row{display:flex;gap:4px;margin-top:6px}
 .url-in{flex:1;padding:5px 8px;background:var(--bg);border:1px solid var(--border2);border-radius:4px;color:var(--tx);font-size:10px;outline:none;font-family:'JetBrains Mono',monospace;min-width:0}
 .url-in:focus{border-color:var(--yellow)}
@@ -91,7 +92,6 @@ body{background:var(--bg);color:var(--tx);font-family:'Noto Sans KR',sans-serif;
 .url-add-btn:hover{background:var(--yellow-bg);border-color:var(--yellow)}
 .url-add-btn:disabled{opacity:.4;cursor:not-allowed}
 .url-err{font-size:10px;color:var(--red);margin-top:3px;display:none}
-.up-card .up-type{position:absolute;bottom:22px;left:2px;background:#000a;color:var(--blue);font-size:7px;font-weight:700;padding:1px 3px;border-radius:2px}
 @keyframes fadeUp{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 @media(max-width:768px){.wrap{flex-direction:column}.left{width:100%;max-height:45vh}.right{flex:1}}
 </style>
@@ -216,10 +216,15 @@ function handleFiles(files){
       img.onload=function(){
         var maxW=1024,w=img.width,h=img.height;
         if(w>maxW){h=Math.round(h*(maxW/w));w=maxW}
+        /* ★ FIX: PNG이면 투명도 보존, 그 외는 JPEG */
+        var isPng=f.type==='image/png';
+        var outMime=isPng?'image/png':'image/jpeg';
         var c=document.createElement('canvas');c.width=w;c.height=h;
-        c.getContext('2d').drawImage(img,0,0,w,h);
-        var data=c.toDataURL('image/jpeg',0.85);
-        uploads.push({id:Date.now()+'_'+Math.random().toString(36).slice(2,5),name:f.name,label:'',data:data,b64:data.split(',')[1],mime:'image/jpeg'});
+        var ctx=c.getContext('2d');
+        if(!isPng){ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);}
+        ctx.drawImage(img,0,0,w,h);
+        var data=isPng?c.toDataURL('image/png'):c.toDataURL('image/jpeg',0.85);
+        uploads.push({id:Date.now()+'_'+Math.random().toString(36).slice(2,5),name:f.name,label:'',data:data,b64:data.split(',')[1],mime:outMime});
         renderUploads();
       };
       img.src=e.target.result;
@@ -271,10 +276,15 @@ function addByUrl(){
     try{
       var maxW=1024,w=img.width,h=img.height;
       if(w>maxW){h=Math.round(h*(maxW/w));w=maxW}
+      /* ★ FIX: .png URL이면 투명도 보존 */
+      var isPng=/\.png(\?|$)/i.test(url);
+      var outMime=isPng?'image/png':'image/jpeg';
       var c=document.createElement('canvas');c.width=w;c.height=h;
-      c.getContext('2d').drawImage(img,0,0,w,h);
-      var data=c.toDataURL('image/jpeg',0.85);
-      uploads.push({id:Date.now()+'_'+Math.random().toString(36).slice(2,5),name:url.split('/').pop().split('?')[0]||'url_image',label:label,data:data,b64:data.split(',')[1],mime:'image/jpeg',fromUrl:true});
+      var ctx=c.getContext('2d');
+      if(!isPng){ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);}
+      ctx.drawImage(img,0,0,w,h);
+      var data=isPng?c.toDataURL('image/png'):c.toDataURL('image/jpeg',0.85);
+      uploads.push({id:Date.now()+'_'+Math.random().toString(36).slice(2,5),name:url.split('/').pop().split('?')[0]||'url_image',label:label,data:data,b64:data.split(',')[1],mime:outMime,fromUrl:true});
       renderUploads();
       document.getElementById('urlIn').value='';
       document.getElementById('urlNameIn').value='';
@@ -424,7 +434,7 @@ function buildResultCard(item){
     '<div class="result-bar">'+
     '<span class="result-prompt" title="'+esc(item.prompt)+'">'+esc(item.prompt)+'</span>'+
     '<span class="result-meta">'+item.time+' · '+item.ratio+'</span>'+
-    '<button class="result-btn" onclick="dlImg(\''+item.id+'\')">💾 저장</button>'+
+    '<button class="result-btn" onclick="dlImg(\''+item.id+'\')">💾 PNG</button>'+
     '<button class="result-btn" onclick="copyPrompt(\''+item.id+'\')">📋</button>'+
     '</div>';
 }
@@ -438,6 +448,7 @@ function openPrev(id){
 function closePrev(){document.getElementById('prevO').classList.remove('open')}
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closePrev()});
 
+/* ★ 다운로드: 무조건 PNG */
 function dlImg(id){
   var item=results.find(function(r){return r.id==id});
   if(!item)return;
@@ -445,6 +456,7 @@ function dlImg(id){
   img.onload=function(){
     var c=document.createElement('canvas');
     c.width=img.naturalWidth;c.height=img.naturalHeight;
+    /* 배경 없이 그대로 — fillRect 안 함 → 투명 유지 */
     c.getContext('2d').drawImage(img,0,0);
     var pngUri=c.toDataURL('image/png');
     var a=document.createElement('a');
