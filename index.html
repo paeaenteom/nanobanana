@@ -125,13 +125,9 @@ body{background:var(--bg);color:var(--tx);font-family:'Noto Sans KR',sans-serif;
   <span class="logo-sub">AI 이미지 생성기 (NSFW 완전 해제)</span>
   <div class="header-right">
     <select class="model-sel" id="modelSel">
-      <option value="gemini-2.0-flash-exp">Nano Banana (2.0 Flash)</option>
-      <option value="gemini-2.0-flash-preview-image-generation">Nano Banana (2.0 Flash Preview)</option>
-      <option value="gemini-2.5-flash-preview-04-17">Nano Banana 2 (2.5 Flash)</option>
-      <option value="gemini-2.5-flash-preview-native-audio-dialog">Nano Banana 2 (2.5 Flash Dialog)</option>
-      <option value="gemini-3.0-flash-image-generation" selected>Nano Banana 2 (3.0 Flash)</option>
-      <option value="gemini-3.0-pro-image-generation">Nano Banana Pro (3.0 Pro)</option>
-      <option value="gemini-3.1-flash-image-preview">Nano Banana 2+ (3.1 Flash)</option>
+      <option value="gemini-2.5-flash-image">🍌 Nano Banana (2.5 Flash) — Stable</option>
+      <option value="gemini-3.1-flash-image-preview" selected>🍌🍌 Nano Banana 2 (3.1 Flash) — 4K</option>
+      <option value="gemini-3-pro-image-preview">🍌 Nano Banana Pro (3 Pro) — Studio</option>
     </select>
     <span class="key-btn off" id="keyBtn" onclick="showModal()">🔑</span>
   </div>
@@ -187,7 +183,7 @@ body{background:var(--bg);color:var(--tx);font-family:'Noto Sans KR',sans-serif;
       <div class="empty">
         <div class="empty-icon">🍌</div>
         <div class="empty-title">프롬프트를 입력하고 생성하세요</div>
-        <div class="empty-desc">모든 모델 NSFW 완전 해제됨<br>2+·3.1 포함 어떤 프롬프트든 제한 없이 생성합니다</div>
+        <div class="empty-desc">Nano Banana · Nano Banana 2 · Nano Banana Pro<br>모든 Nano Banana 모델 지원</div>
       </div>
     </div>
   </div>
@@ -365,7 +361,8 @@ function generate(){
       {category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE"},
       {category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE"},
       {category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE"},
-      {category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE"}
+      {category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE"},
+      {category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE"}
     ]
   };
 
