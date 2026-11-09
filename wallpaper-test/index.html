@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>음악 스킨 기능 테스트</title>
+<style>
+:root{--bg:#0b0b10;--panel:rgba(255,255,255,.06);--line:rgba(255,255,255,.12);--tx:#f2f2f5;--tx2:#9a9aa6;--ok:#3ddc84;--bad:#ff5a5f;--wait:#f5c542;--accent:#ff5fa2}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font-family:'Segoe UI','Malgun Gothic',sans-serif}
+body{display:grid;grid-template-columns:340px 1fr 380px;grid-template-rows:1fr 230px;gap:16px;padding:24px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;backdrop-filter:blur(20px);overflow:hidden}
+h2{font-size:13px;font-weight:600;color:var(--tx2);margin-bottom:12px;letter-spacing:.5px}
+.thumb{width:100%;aspect-ratio:1;border-radius:12px;background:#222 center/cover;margin-bottom:12px;box-shadow:0 0 40px var(--accent)}
+.title{font-size:20px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.artist{font-size:14px;color:var(--tx2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.state{font-size:12px;margin-top:10px;color:var(--accent)}
+.bar{height:4px;background:var(--line);border-radius:2px;margin-top:10px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--accent)}
+.time{display:flex;justify-content:space-between;font-size:11px;color:var(--tx2);margin-top:4px}
+.sw{display:flex;gap:6px;margin-top:12px}
+.sw span{flex:1;height:22px;border-radius:6px;border:1px solid var(--line);font-size:9px;display:flex;align-items:flex-end;justify-content:center;color:#000a}
+.center{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:none;border:none;backdrop-filter:none}
+.clock{font-size:120px;font-weight:200;line-height:1;color:var(--accent);letter-spacing:-4px}
+.date{font-size:14px;color:var(--tx2);margin-bottom:40px}
+.lyric{font-size:52px;font-weight:900;text-transform:uppercase;max-width:90%;min-height:70px;text-shadow:0 4px 30px #000}
+.lyric-src{font-size:11px;color:var(--tx2);margin-top:10px}
+.checks li{list-style:none;display:flex;gap:8px;align-items:flex-start;font-size:13px;padding:6px 0;border-bottom:1px solid var(--line)}
+.checks li:last-child{border:none}
+.dot{flex:0 0 18px;text-align:center}
+.ck-name{flex:1}
+.ck-note{display:block;font-size:11px;color:var(--tx2);margin-top:2px;word-break:break-all}
+.ok .dot{color:var(--ok)}.bad .dot{color:var(--bad)}.wait .dot{color:var(--wait)}.manual .dot{color:var(--tx2)}
+.bottom{grid-column:1/4;display:grid;grid-template-columns:300px 300px 1fr 1fr;gap:16px;padding:0;background:none;border:none;backdrop-filter:none}
+.bottom .panel{padding:12px}
+.media-box{width:100%;height:160px;border-radius:10px;background:#000;overflow:hidden}
+.media-box iframe,.media-box video{width:100%;height:100%;border:0;object-fit:cover}
+.in{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:#0006;color:var(--tx);font-size:13px;margin-bottom:8px}
+.btn{display:block;width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:#ffffff12;color:var(--tx);font-size:12px;cursor:pointer;margin-bottom:6px;text-align:center;text-decoration:none}
+.btn:hover{background:#ffffff22}
+.res li{list-style:none;display:flex;gap:8px;align-items:center;font-size:12px;padding:3px 0}
+.res img{width:32px;height:32px;border-radius:4px}
+.res b{display:block;font-weight:600}
+.res small{color:var(--tx2)}
+.hint{font-size:11px;color:var(--tx2);margin-top:4px}
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <h2>🎵 지금 재생 중 (미디어 연동)</h2>
+  <div class="thumb" id="thumb"></div>
+  <div class="title" id="title">재생 정보 없음</div>
+  <div class="artist" id="artist">Spotify나 YouTube Music에서 곡을 틀어보세요</div>
+  <div class="state" id="state">상태: -</div>
+  <div class="bar"><i id="barFill"></i></div>
+  <div class="time"><span id="tPos">0:00</span><span id="tLeft">-0:00</span></div>
+  <div class="sw" id="swatches"></div>
+</div>
+
+<div class="panel center">
+  <div class="clock" id="clock">00:00</div>
+  <div class="date" id="date"></div>
+  <div class="lyric" id="lyric">♪ …</div>
+  <div class="lyric-src" id="lyricSrc">가사: 곡 재생 대기 중</div>
+</div>
+
+<div class="panel">
+  <h2>✅ 기능 테스트 결과</h2>
+  <ul class="checks" id="checks"></ul>
+</div>
+
+<div class="bottom">
+  <div class="panel">
+    <h2>📺 유튜브 영상 임베드</h2>
+    <div class="media-box"><div id="ytPlayer"></div></div>
+  </div>
+  <div class="panel">
+    <h2>🎞️ 로컬 mp4 재생</h2>
+    <div class="media-box"><video id="localVid" src="test.mp4" autoplay muted loop playsinline></video></div>
+  </div>
+  <div class="panel">
+    <h2>⌨️ 키보드 · 🔗 링크 열기</h2>
+    <input class="in" id="kbIn" placeholder="여기를 클릭하고 타이핑해보세요">
+    <button class="btn" onclick="openWin()">① window.open → YouTube Music 검색</button>
+    <a class="btn" href="https://music.youtube.com/search?q=juice%20wrld" target="_blank">② 일반 링크 → YouTube Music 검색</a>
+    <button class="btn" onclick="openApp()">③ spotify: 주소 → Spotify 앱 열기</button>
+    <div class="hint">①②③ 각각 눌러보고 브라우저/앱이 열렸는지 직접 확인해주세요</div>
+  </div>
+  <div class="panel">
+    <h2>🔍 검색 API 결과 (iTunes · "juice wrld")</h2>
+    <ul class="res" id="searchRes"><li class="hint">불러오는 중...</li></ul>
+  </div>
+</div>
+
+<script>
+// ===== 테스트 항목 =====
+var CHECK_LIST=[
+  ['mediaApi','미디어 연동 API 존재'],
+  ['mediaStatus','미디어 연동 켜짐'],
+  ['mediaProps','곡 정보 수신 (제목·아티스트)'],
+  ['mediaThumb','앨범아트 · 색상 수신'],
+  ['mediaPlayback','재생 상태 수신'],
+  ['mediaTimeline','진행 시간 수신'],
+  ['lrclib','가사 API (LRCLIB) 호출'],
+  ['itunes','검색 API (iTunes) 호출'],
+  ['ytEmbed','유튜브 영상 재생'],
+  ['localVideo','로컬 mp4 재생'],
+  ['mouse','마우스 클릭'],
+  ['keyboard','키보드 입력'],
+  ['links','링크 · 앱 열기 (수동 확인)']
+];
+var ICON={ok:'✅',bad:'❌',wait:'⏳',manual:'👀'};
+var checks={};
+CHECK_LIST.forEach(function(c){checks[c[0]]={state:'wait',note:''}});
+checks.links={state:'manual',note:'아래 ①②③ 버튼을 눌러 확인'};
+checks.mouse.note='화면 아무 곳이나 클릭';
+checks.keyboard.note='아래 입력칸에 타이핑';
+
+function setCheck(id,state,note){
+  if(!checks[id])return;
+  if(checks[id].state==='ok'&&state!=='ok')return;
+  checks[id]={state:state,note:note||''};
+  renderChecks();
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function renderChecks(){
+  var html='';
+  CHECK_LIST.forEach(function(c){
+    var k=checks[c[0]];
+    html+='<li class="'+k.state+'"><span class="dot">'+ICON[k.state]+'</span><span class="ck-name">'+esc(c[1])+(k.note?'<span class="ck-note">'+esc(k.note)+'</span>':'')+'</span></li>';
+  });
+  document.getElementById('checks').innerHTML=html;
+}
+renderChecks();
+
+// ===== 시계 =====
+var DAYS=['일','월','화','수','목','금','토'];
+function pad(n){return n<10?'0'+n:''+n}
+function tickClock(){
+  var d=new Date();
+  document.getElementById('clock').textContent=pad(d.getHours())+':'+pad(d.getMinutes());
+  document.getElementById('date').textContent=(d.getMonth()+1)+'월 '+d.getDate()+'일 ('+DAYS[d.getDay()]+')';
+}
+tickClock();setInterval(tickClock,1000);
+
+// ===== 미디어 연동 =====
+var track={title:'',artist:'',album:''};
+var tl={pos:0,dur:0,stamp:0};
+var playing=false;
+
+function fmt(sec){
+  if(!isFinite(sec)||sec<0)sec=0;
+  sec=Math.floor(sec);
+  return Math.floor(sec/60)+':'+pad(sec%60);
+}
+function curPos(){
+  var p=tl.pos+(playing&&tl.stamp?(Date.now()-tl.stamp)/1000:0);
+  return tl.dur?Math.min(p,tl.dur):p;
+}
+
+function onStatus(e){
+  setCheck('mediaStatus',e.enabled?'ok':'bad',e.enabled?'':'Wallpaper Engine 설정에서 미디어 연동을 켜주세요');
+}
+function onProps(e){
+  setCheck('mediaProps','ok',(e.title||'(제목 없음)')+' / '+(e.artist||'(아티스트 없음)'));
+  document.getElementById('title').textContent=e.title||'(제목 없음)';
+  document.getElementById('artist').textContent=(e.artist||'')+(e.albumTitle?' · '+e.albumTitle:'');
+  if(e.title!==track.title||e.artist!==track.artist){
+    track={title:e.title||'',artist:e.artist||'',album:e.albumTitle||''};
+    loadLyrics();
+  }
+}
+function onThumb(e){
+  var keys=['primaryColor','secondaryColor','tertiaryColor','textColor','highContrastColor'];
+  var got=[];
+  if(e.thumbnail){document.getElementById('thumb').style.backgroundImage='url("'+e.thumbnail+'")';got.push('썸네일')}
+  if(e.primaryColor)document.documentElement.style.setProperty('--accent',e.primaryColor);
+  var html='';
+  keys.forEach(function(k){
+    if(e[k]){got.push(k.replace('Color',''));html+='<span style="background:'+esc(e[k])+'" title="'+k+'">'+k.replace('Color','').slice(0,4)+'</span>'}
+  });
+  document.getElementById('swatches').innerHTML=html;
+  setCheck('mediaThumb',got.length?'ok':'bad',got.join(', ')||'데이터 비어 있음');
+}
+function onPlayback(e){
+  var M=window.wallpaperMediaIntegration||{};
+  var label='알 수 없음('+e.state+')';
+  if(M.PLAYBACK_PLAYING!==undefined&&e.state===M.PLAYBACK_PLAYING)label='재생 중';
+  else if(M.PLAYBACK_PAUSED!==undefined&&e.state===M.PLAYBACK_PAUSED)label='일시정지';
+  else if(M.PLAYBACK_STOPPED!==undefined&&e.state===M.PLAYBACK_STOPPED)label='정지';
+  if(playing)tl.pos=curPos();
+  tl.stamp=Date.now();
+  playing=(M.PLAYBACK_PLAYING!==undefined&&e.state===M.PLAYBACK_PLAYING);
+  document.getElementById('state').textContent='상태: '+label;
+  setCheck('mediaPlayback','ok',label);
+}
+function onTimeline(e){
+  tl={pos:Number(e.position)||0,dur:Number(e.duration)||0,stamp:Date.now()};
+  setCheck('mediaTimeline','ok',fmt(tl.pos)+' / '+fmt(tl.dur));
+}
+
+function registerMedia(tries){
+  var w=window;
+  if(typeof w.wallpaperRegisterMediaPropertiesListener!=='function'){
+    if(tries<12){setTimeout(function(){registerMedia(tries+1)},250);return}
+    setCheck('mediaApi','bad','Wallpaper Engine 밖에서 열었거나 미지원 버전');
+    ['mediaStatus','mediaProps','mediaThumb','mediaPlayback','mediaTimeline'].forEach(function(id){setCheck(id,'bad','API 없음')});
+    return;
+  }
+  setCheck('mediaApi','ok');
+  if(typeof w.wallpaperRegisterMediaStatusListener==='function')w.wallpaperRegisterMediaStatusListener(onStatus);
+  else setCheck('mediaStatus','bad','상태 리스너 없음');
+  w.wallpaperRegisterMediaPropertiesListener(onProps);
+  if(typeof w.wallpaperRegisterMediaThumbnailListener==='function')w.wallpaperRegisterMediaThumbnailListener(onThumb);
+  else setCheck('mediaThumb','bad','썸네일 리스너 없음');
+  if(typeof w.wallpaperRegisterMediaPlaybackListener==='function')w.wallpaperRegisterMediaPlaybackListener(onPlayback);
+  else setCheck('mediaPlayback','bad','재생 상태 리스너 없음');
+  if(typeof w.wallpaperRegisterMediaTimelineListener==='function')w.wallpaperRegisterMediaTimelineListener(onTimeline);
+  else setCheck('mediaTimeline','bad','진행 시간 리스너 없음');
+  ['mediaProps','mediaThumb','mediaPlayback','mediaTimeline'].forEach(function(id){
+    if(checks[id].state==='wait')checks[id].note='음악을 틀면 표시됩니다';
+  });
+  renderChecks();
+}
+registerMedia(0);
+
+// ===== 가사 (LRCLIB) =====
+var lyricLines=[];
+function parseLrc(txt){
+  var out=[];
+  String(txt||'').split('\n').forEach(function(line){
+    var m=line.match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)$/);
+    if(m)out.push({t:Number(m[1])*60+Number(m[2]),text:m[3].trim()});
+  });
+  return out;
+}
+function lrclibGet(artist,title){
+  var url='https://lrclib.net/api/get?artist_name='+encodeURIComponent(artist)+'&track_name='+encodeURIComponent(title);
+  return fetch(url).then(function(res){
+    setCheck('lrclib','ok','응답 '+res.status+' (네트워크 호출 가능)');
+    if(!res.ok)return null;
+    return res.json();
+  });
+}
+function loadLyrics(){
+  lyricLines=[];
+  document.getElementById('lyric').textContent='♪ …';
+  if(!track.title){document.getElementById('lyricSrc').textContent='가사: 곡 정보 없음';return}
+  document.getElementById('lyricSrc').textContent='가사: 검색 중...';
+  var want=track.title+'|'+track.artist;
+  lrclibGet(track.artist,track.title).then(function(d){
+    if(want!==track.title+'|'+track.artist)return;
+    lyricLines=d&&d.syncedLyrics?parseLrc(d.syncedLyrics):[];
+    document.getElementById('lyricSrc').textContent=lyricLines.length?'가사: LRCLIB 실시간 가사 '+lyricLines.length+'줄':'가사: 실시간 가사 없음 (No lyrics for this song)';
+    if(!lyricLines.length)document.getElementById('lyric').textContent='No lyrics for this song';
+  }).catch(function(err){
+    setCheck('lrclib','bad','호출 실패: '+err.message);
+    document.getElementById('lyricSrc').textContent='가사: 호출 실패';
+  });
+}
+function tickLyrics(){
+  var p=curPos();
+  if(tl.dur){
+    document.getElementById('barFill').style.width=Math.min(100,p/tl.dur*100)+'%';
+    document.getElementById('tPos').textContent=fmt(p);
+    document.getElementById('tLeft').textContent='-'+fmt(tl.dur-p);
+  }
+  if(!lyricLines.length)return;
+  var line=null;
+  for(var i=0;i<lyricLines.length;i++){if(lyricLines[i].t<=p)line=lyricLines[i];else break}
+  var txt=line&&line.text?line.text:'♪ …';
+  var el=document.getElementById('lyric');
+  if(el.textContent!==txt)el.textContent=txt;
+}
+setInterval(tickLyrics,200);
+
+// 시작 시 가사 API 단독 테스트
+lrclibGet('Juice WRLD','Lucid Dreams').then(function(d){
+  if(d&&d.syncedLyrics)setCheck('lrclib','ok','Lucid Dreams 실시간 가사 '+parseLrc(d.syncedLyrics).length+'줄 받음');
+}).catch(function(err){setCheck('lrclib','bad','호출 실패: '+err.message)});
+
+// ===== 검색 (iTunes Search API) =====
+function renderSearch(list){
+  var html='';
+  list.slice(0,5).forEach(function(r){
+    html+='<li><img src="'+esc(r.artworkUrl60)+'"><span><b>'+esc(r.trackName)+'</b><small>'+esc(r.artistName)+' · '+esc(r.collectionName)+'</small></span></li>';
+  });
+  document.getElementById('searchRes').innerHTML=html||'<li class="hint">결과 없음</li>';
+}
+function itunesJsonp(){
+  var cb='itunesCb'+Date.now();
+  var s=document.createElement('script');
+  var timer=setTimeout(function(){setCheck('itunes','bad','fetch·JSONP 모두 실패');document.getElementById('searchRes').innerHTML='<li class="hint">검색 실패</li>'},10000);
+  window[cb]=function(d){clearTimeout(timer);setCheck('itunes','ok','JSONP 방식만 가능');renderSearch(d.results||[])};
+  s.onerror=function(){clearTimeout(timer);setCheck('itunes','bad','fetch·JSONP 모두 실패');document.getElementById('searchRes').innerHTML='<li class="hint">검색 실패</li>'};
+  s.src='https://itunes.apple.com/search?term=juice+wrld&entity=song&limit=5&callback='+cb;
+  document.body.appendChild(s);
+}
+fetch('https://itunes.apple.com/search?term=juice+wrld&entity=song&limit=5').then(function(res){
+  if(!res.ok)throw new Error('응답 '+res.status);
+  return res.json();
+}).then(function(d){
+  setCheck('itunes','ok','fetch 방식 가능 · '+(d.resultCount||0)+'건');
+  renderSearch(d.results||[]);
+}).catch(function(){itunesJsonp()});
+
+// ===== 유튜브 임베드 =====
+var YT_ERR={2:'잘못된 영상 ID',5:'HTML5 재생 불가',100:'영상 없음',101:'퍼가기 금지 영상',150:'퍼가기 금지 영상',152:'임베드 거부',153:'플레이어 설정 오류 (출처 정보 없음)'};
+var ytTimer=setTimeout(function(){setCheck('ytEmbed','bad','20초 안에 재생 안 됨')},20000);
+window.onYouTubeIframeAPIReady=function(){
+  new YT.Player('ytPlayer',{
+    videoId:'M7lc1UVf-VE',
+    playerVars:{autoplay:1,mute:1,controls:0,playsinline:1,loop:1,playlist:'M7lc1UVf-VE'},
+    events:{
+      onReady:function(e){e.target.mute();e.target.playVideo();setCheck('ytEmbed','wait','플레이어 로드됨, 재생 대기')},
+      onStateChange:function(e){if(e.data===1){clearTimeout(ytTimer);setCheck('ytEmbed','ok','재생 중')}},
+      onError:function(e){clearTimeout(ytTimer);setCheck('ytEmbed','bad','오류 '+e.data+': '+(YT_ERR[e.data]||'알 수 없음'))}
+    }
+  });
+};
+(function(){
+  var s=document.createElement('script');
+  s.src='https://www.youtube.com/iframe_api';
+  s.onerror=function(){clearTimeout(ytTimer);setCheck('ytEmbed','bad','유튜브 스크립트 로드 실패')};
+  document.body.appendChild(s);
+})();
+
+// ===== 로컬 mp4 =====
+var vid=document.getElementById('localVid');
+vid.addEventListener('playing',function(){setCheck('localVideo','ok','H.264 mp4 재생 중')});
+vid.addEventListener('error',function(){setCheck('localVideo','bad','재생 오류')});
+
+// ===== 마우스 · 키보드 =====
+document.addEventListener('mousedown',function(e){setCheck('mouse','ok','클릭 감지 ('+e.clientX+', '+e.clientY+')')});
+document.addEventListener('keydown',function(e){setCheck('keyboard','ok','키 입력 감지: '+e.key)});
+document.getElementById('kbIn').addEventListener('input',function(e){setCheck('keyboard','ok','입력됨: '+e.target.value)});
+
+// ===== 링크 · 앱 열기 =====
+function openWin(){window.open('https://music.youtube.com/search?q=juice%20wrld','_blank')}
+function openApp(){window.location.href='spotify:search:juice%20wrld'}
+</script>
+</body>
+</html>

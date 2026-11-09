@@ -11,6 +11,7 @@
 index.html   # 앱 전체: <style> → 마크업 → <script>
 vercel.json  # SPA rewrite + 보안 헤더
 README.md    # 사용자용 소개
+wallpaper-test/  # Wallpaper Engine 음악 스킨 기능 테스트 (나노바나나와 별개 프로젝트)
 
 ## 명령어
 - 로컬: `python3 -m http.server 8000` → http://localhost:8000

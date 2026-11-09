@@ -1,0 +1,6 @@
+{
+	"file" : "index.html",
+	"title" : "음악 스킨 기능 테스트",
+	"description" : "Wallpaper Engine에서 음악 스킨 구현 가능 여부를 확인하는 테스트 배경화면",
+	"type" : "web"
+}
