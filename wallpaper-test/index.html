@@ -223,7 +223,8 @@ function registerMedia(tries){
   });
   renderChecks();
 }
-registerMedia(0);
+// WE 2.8.42 버그 우회: 페이지 로드 중 바로 등록하면 배경화면 전환/재로드 때 곡 정보가 안 옴 → 로드 후 2초 뒤 등록 (실측 3/3 성공, 즉시 등록은 3/3 실패)
+setTimeout(function(){registerMedia(0)},2000);
 
 // ===== 가사 (LRCLIB) =====
 var lyricLines=[];
