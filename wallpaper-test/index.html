@@ -100,6 +100,7 @@ var CHECK_LIST=[
   ['mediaStatus','미디어 연동 켜짐'],
   ['mediaProps','곡 정보 수신 (제목·아티스트)'],
   ['mediaThumb','앨범아트 · 색상 수신'],
+  ['artHi','고화질 앨범아트 (iTunes 1000px)'],
   ['mediaPlayback','재생 상태 수신'],
   ['mediaTimeline','진행 시간 수신'],
   ['lrclib','가사 API (LRCLIB) 호출'],
@@ -168,13 +169,20 @@ function onProps(e){
   document.getElementById('artist').textContent=(e.artist||'')+(e.albumTitle?' · '+e.albumTitle:'');
   if(e.title!==track.title||e.artist!==track.artist){
     track={title:e.title||'',artist:e.artist||'',album:e.albumTitle||''};
+    tl={pos:0,dur:0,stamp:0}; // 새 곡: 다음 진행 시간 이벤트를 무조건 받음
     loadLyrics();
+    loadHiResArt();
   }
 }
 function onThumb(e){
   var keys=['primaryColor','secondaryColor','tertiaryColor','textColor','highContrastColor'];
   var got=[];
-  if(e.thumbnail){document.getElementById('thumb').style.backgroundImage='url("'+e.thumbnail+'")';got.push('썸네일')}
+  if(e.thumbnail){
+    lowThumb=e.thumbnail;
+    if(!art.hi)document.getElementById('thumb').style.backgroundImage='url("'+e.thumbnail+'")'; // 고화질 받았으면 덮어쓰지 않음
+    var im=new Image();im.onload=function(){setCheck('mediaThumb','ok',got.join(', ')+' · WE 원본 '+im.naturalWidth+'×'+im.naturalHeight+'px')};im.src=e.thumbnail;
+    got.push('썸네일');
+  }
   if(e.primaryColor)document.documentElement.style.setProperty('--accent',e.primaryColor);
   var html='';
   keys.forEach(function(k){
@@ -195,9 +203,83 @@ function onPlayback(e){
   document.getElementById('state').textContent='상태: '+label;
   setCheck('mediaPlayback','ok',label);
 }
+// WE가 주는 위치는 정수(내림)이고 몇 초씩 늦게 와서 항상 실제보다 작거나 같음(실측).
+// 그래서 받을 때마다 시계를 맞추면 가사가 ~1초 늦어짐(시뮬레이션 중앙값 -1.0초).
+// → 내 시계보다 앞서면(내가 늦음) 맞추고, 3초 넘게 뒤면(되감기) 맞추고, 나머지는 무시.
+var TL_COMP=0.8;     // 재생 중 맞출 때 더하는 값. 실측: WE 이벤트가 실제보다 0.3~1.0초 늦게 옴(곡 시작 7회 중앙값 0.81초)
+var TL_BACK_JUMP=3;  // 이보다 크게 뒤로 가면 되감기로 판단
 function onTimeline(e){
-  tl={pos:Number(e.position)||0,dur:Number(e.duration)||0,stamp:Date.now()};
-  setCheck('mediaTimeline','ok',fmt(tl.pos)+' / '+fmt(tl.dur));
+  var rep=Number(e.position)||0,dur=Number(e.duration)||0,exp=curPos(),how='유지';
+  var comp=(playing||!tl.stamp)?TL_COMP:0; // 일시정지 중엔 위치가 안 움직이니 보정 안 함
+  if(!tl.stamp||rep+comp>exp||rep<exp-TL_BACK_JUMP){tl={pos:Math.min(rep+comp,dur||Infinity),dur:dur,stamp:Date.now()};how='맞춤'}
+  else tl.dur=dur;
+  setCheck('mediaTimeline','ok',fmt(curPos())+' / '+fmt(tl.dur)+' (WE '+rep+'초 → '+how+')');
+}
+
+// ===== 고화질 앨범아트 =====
+// WE 썸네일은 120~150px(실측)이라 306px 칸에서 흐림 → iTunes에서 같은 곡을 찾아 1000px 이미지로 교체.
+// KR 스토어는 결과 0건(실측) → US·JP 검색. 스토어마다 아티스트 표기가 달라(Maki Oguro/Ohguro, ジュース・ワールド) 유사도로 비교.
+var lowThumb='',art={key:'',hi:false};
+function normName(s){
+  return String(s||'').normalize('NFKC').toLowerCase()
+    .replace(/\(.*?\)|\[.*?\]|（.*?）|【.*?】/g,' ').replace(/\b(feat|ft)\..*$/,' ')
+    .replace(/[^\p{L}\p{N}]+/gu,'');
+}
+function nameParts(s){
+  var out=[];String(s||'').normalize('NFKC').split(/,|&|＆|、| 및 | and | x | feat\.? | ft\.? |\(|\)|（|）|\//i).forEach(function(p){p=normName(p);if(p)out.push(p)});
+  return out;
+}
+function lev(a,b){
+  var m=a.length,n=b.length,d=[],i,j;for(i=0;i<=m;i++){d[i]=[i]}for(j=0;j<=n;j++)d[0][j]=j;
+  for(i=1;i<=m;i++)for(j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+  return d[m][n];
+}
+function similar(a,b){
+  if(!a||!b)return false;
+  if(a===b)return true;
+  if(Math.min(a.length,b.length)>=3&&(a.indexOf(b)>=0||b.indexOf(a)>=0))return true;
+  return lev(a,b)/Math.max(a.length,b.length)<=0.25;
+}
+var BAD_VER=/karaoke|instrumental|off ?vocal|inst\.|カラオケ|tvサイズ|tv size|tv edit/i;
+function pickArt(results,title,artist){
+  var wantT=normName(title),wantA=nameParts(artist);
+  for(var i=0;i<results.length;i++){
+    var r=results[i];if(!r||!r.artworkUrl100||BAD_VER.test(r.trackName||''))continue;
+    var t=normName(r.trackName);
+    var tOk=t===wantT||(wantT.length>=2&&(t.indexOf(wantT)===0||wantT.indexOf(t)===0)&&Math.min(t.length,wantT.length)>=2);
+    if(!tOk)continue;
+    var candA=nameParts(r.artistName),aOk=!wantA.length;
+    for(var x=0;x<wantA.length&&!aOk;x++)for(var y=0;y<candA.length&&!aOk;y++)if(similar(wantA[x],candA[y]))aOk=true;
+    if(aOk)return r;
+  }
+  return null;
+}
+function itunesSearch(term,country){
+  return fetch('https://itunes.apple.com/search?entity=song&limit=10&country='+country+'&term='+encodeURIComponent(term))
+    .then(function(r){return r.ok?r.json():{results:[]}}).then(function(d){return d.results||[]}).catch(function(){return[]});
+}
+function loadHiResArt(){
+  var key=track.title+'|'+track.artist;
+  art={key:key,hi:false};
+  checks.artHi={state:'wait',note:'검색 중... ('+track.title+')'};renderChecks(); // 이전 곡 결과가 남지 않게
+  if(lowThumb)document.getElementById('thumb').style.backgroundImage='url("'+lowThumb+'")';
+  if(!track.title)return;
+  var term=track.title+' '+(String(track.artist).split(/,|&| 및 /)[0]||'').replace(/\(.*?\)/g,' ');
+  Promise.all([itunesSearch(term,'US'),itunesSearch(term,'JP')]).then(function(rs){
+    if(art.key!==key)return; // 그새 곡이 바뀜
+    var hit=pickArt(rs[0].concat(rs[1]),track.title,track.artist);
+    if(!hit){checks.artHi={state:'wait',note:'iTunes에서 못 찾음 → WE 원본 사용 ('+track.title+')'};renderChecks();return}
+    var url=hit.artworkUrl100.replace(/\/\d+x\d+bb\./,'/1000x1000bb.');
+    var im=new Image();
+    im.onload=function(){
+      if(art.key!==key)return;
+      art.hi=true;
+      document.getElementById('thumb').style.backgroundImage='url("'+url+'")';
+      checks.artHi={state:'ok',note:im.naturalWidth+'×'+im.naturalHeight+'px · '+hit.trackName+' / '+hit.artistName};renderChecks();
+    };
+    im.onerror=function(){if(art.key===key){checks.artHi={state:'bad',note:'이미지 로드 실패'};renderChecks()}};
+    im.src=url;
+  });
 }
 
 function registerMedia(tries){
@@ -228,6 +310,7 @@ setTimeout(function(){registerMedia(0)},2000);
 
 // ===== 가사 (LRCLIB) =====
 var lyricLines=[];
+var LYRIC_LEAD=0.2; // 가사를 0.2초 먼저 표시 (화면 반영 시간 감안)
 function parseLrc(txt){
   var out=[];
   String(txt||'').split('\n').forEach(function(line){
@@ -268,8 +351,8 @@ function tickLyrics(){
     document.getElementById('tLeft').textContent='-'+fmt(tl.dur-p);
   }
   if(!lyricLines.length)return;
-  var line=null;
-  for(var i=0;i<lyricLines.length;i++){if(lyricLines[i].t<=p)line=lyricLines[i];else break}
+  var line=null,lp=p+LYRIC_LEAD;
+  for(var i=0;i<lyricLines.length;i++){if(lyricLines[i].t<=lp)line=lyricLines[i];else break}
   var txt=line&&line.text?line.text:'♪ …';
   var el=document.getElementById('lyric');
   if(el.textContent!==txt)el.textContent=txt;
